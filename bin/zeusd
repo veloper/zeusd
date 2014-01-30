@@ -1,0 +1,32 @@
+require "thor"
+
+class ZeusdCLI < Thor
+  class_option :verbose,  :type => :boolean,  :alias => :v
+  class_option :pidfile,  :type => :string,   :alias => :p
+  class_option :logfile,  :type => :string,   :alias => :l
+  class_option :cwd,      :type => :string,   :alias => :d
+
+  desc "start", "."
+  def start
+    Zeusd::Daemon.new(options).start!
+  end
+
+  desc "restart", "."
+  def restart
+    Zeusd::Daemon.new(options).stop!
+    Zeusd::Daemon.new(options).start!
+  end
+
+  desc "stop", "."
+  def stop
+    Zeusd::Daemon.new(options).stop!
+  end
+
+  desc "status", "."
+  def status
+    # Zeusd::Daemon.new(options).stop!
+  end
+
+end
+
+BlogCLI.start(ARGV)
