@@ -24,10 +24,14 @@ module Zeusd
       end
 
       if p.nil?
-        System.processes.find{|x| x.zeus_start? && x.cwd == cwd}.tap{|x| p = x if x}
+        System.processes.find{|x| x.zeus_start? && x.cwd == opts[:cwd]}.tap{|x| p = x if x}
       end
 
       p
+    end
+
+    def process?
+      !process.nil?
     end
 
     def process?
@@ -43,7 +47,7 @@ module Zeusd
       process_id = nil
       Thread.new do
         IO.popen("zeus start 2>&1 &") do |io|
-          process_id = Process.pid
+          process_id = io.pid #not right, off by one
           while (buffer = (io.readpartial(4096) rescue nil)) do
             update_queue  << buffer
             utility_queue << buffer
@@ -59,7 +63,7 @@ module Zeusd
         end
       end
 
-      sleep 0.5 until @pid = process_id
+      sleep 0.5 until process?
 
       pid
     end
