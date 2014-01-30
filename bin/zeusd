@@ -1,6 +1,8 @@
 require "thor"
+require "zeusd"
 
 class ZeusdCLI < Thor
+  class_option :debug,    :type => :boolean
   class_option :verbose,  :type => :boolean,  :alias => :v
   class_option :pidfile,  :type => :string,   :alias => :p
   class_option :logfile,  :type => :string,   :alias => :l
@@ -8,7 +10,10 @@ class ZeusdCLI < Thor
 
   desc "start", "."
   def start
-    Zeusd::Daemon.new(options).start!
+    stop
+    daemon = Zeusd::Daemon.new(:debug => options[:debug])
+    daemon.start!
+    daemon.block_until_loaded
   end
 
   desc "restart", "."
@@ -29,4 +34,4 @@ class ZeusdCLI < Thor
 
 end
 
-BlogCLI.start(ARGV)
+ZeusdCLI.start(ARGV)
