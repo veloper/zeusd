@@ -1,41 +1,25 @@
 require 'thread'
 module Zeusd
   class Daemon
-    attr_accessor :opts
-    attr_reader :pid, :process, :update_queue, :utility_queue
+    attr_reader :cwd, :logfile, :process, :update_queue, :loaded_queue
 
     def initialize(options = {})
-      @opts = {
-        :cwd     => options.fetch(:cwd, Dir.pwd),
-        :pidfile => options.fetch(:pidfile, '.zeusd.pid'),
-        :logfile => options.fetch(:logfile, 'log/zuesd.log'),
-        :debug   => !!options.fetch(:debug, false)
-      }
-      @utility_queue = Queue.new
-      @update_queue  = Queue.new
-      on_update(&method(:puts)) if opts[:debug]
+      @cwd          = options.fetch(:cwd, Dir.pwd)
+      @logfile      = options.fetch(:logfile, 'log/zuesd.log')
+      @verbose      = options.fetch(:verbose, false)
+      @loaded_queue = Queue.new
+      @update_queue = Queue.new
+      on_update(&method(:puts)) if @verbose
     end
 
     def process
-      p = nil
-
-      if pid.to_i > 0
-        System::Process.find(pid).tap{|x| p = x if x}
+      System.processes.find do |p|
+        p.zeus_start? && p.cwd == cwd
       end
-
-      if p.nil?
-        System.processes.find{|x| x.zeus_start? && x.cwd == opts[:cwd]}.tap{|x| p = x if x}
-      end
-
-      p
     end
 
     def process?
-      !process.nil?
-    end
-
-    def process?
-      !process.nil?
+      !!process
     end
 
     def stop!
@@ -43,14 +27,12 @@ module Zeusd
       socket_file.delete  if socket_file.exist?
     end
 
-    def start!
-      process_id = nil
+    def start!(options = {})
       Thread.new do
         IO.popen("zeus start 2>&1 &") do |io|
-          process_id = io.pid #not right, off by one
           while (buffer = (io.readpartial(4096) rescue nil)) do
-            update_queue  << buffer
-            utility_queue << buffer
+            update_queue << buffer
+            loaded_queue << buffer
           end
         end
       end
@@ -63,9 +45,7 @@ module Zeusd
         end
       end
 
-      sleep 0.5 until process?
-
-      pid
+      block_until_loaded unless options.fetch(:non_block, false)
     end
 
     def loaded?
@@ -78,15 +58,9 @@ module Zeusd
     end
 
     def block_until_loaded
-      while utility_queue.pop
+      while loaded_queue.pop
         break if loaded?
       end
-    end
-
-    protected
-
-    def under_cwd(&block)
-      Dir.chdir(opts[:cwd], &block)
     end
 
     def socket_file
@@ -94,9 +68,12 @@ module Zeusd
     end
 
     def log_file
-      opts[:logfile] ? Pathname.new(opts[:logfile]) : nil
+      @logfile ? Pathname.new(@logfile) : nil
     end
 
+    def under_cwd(&block)
+      Dir.chdir(@cwd, &block)
+    end
 
   end
 end

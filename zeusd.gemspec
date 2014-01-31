@@ -11,7 +11,7 @@ Gem::Specification.new do |spec|
   spec.description   = "Gain more control over the Zuez gem"
   spec.summary       = "Gain more control over the Zuez gem"
   spec.homepage      = ""
-  spec.license       = "MIT"
+  spec.license       = "New BSD"
 
   spec.files         = `git ls-files`.split($/)
   spec.executables   = spec.files.grep(%r{^bin/}) { |f| File.basename(f) }

@@ -2,34 +2,38 @@ require "thor"
 require "zeusd"
 
 class ZeusdCLI < Thor
-  class_option :debug,    :type => :boolean
-  class_option :verbose,  :type => :boolean,  :alias => :v
-  class_option :pidfile,  :type => :string,   :alias => :p
-  class_option :logfile,  :type => :string,   :alias => :l
-  class_option :cwd,      :type => :string,   :alias => :d
+  class_option :verbose,  :type => :boolean,  :aliases => :v
+  class_option :block,    :type => :boolean,  :aliases => :b
+  class_option :cwd,      :type => :string,   :aliases => :d
+  class_option :pidfile,  :type => :string,   :aliases => :p
+  class_option :logfile,  :type => :string,   :aliases => :l
 
   desc "start", "."
   def start
     stop
-    daemon = Zeusd::Daemon.new(:debug => options[:debug])
-    daemon.start!
-    daemon.block_until_loaded
+    daemon.start! :block => options[:block]
   end
 
   desc "restart", "."
   def restart
-    Zeusd::Daemon.new(options).stop!
-    Zeusd::Daemon.new(options).start!
+    stop
+    start
   end
 
   desc "stop", "."
   def stop
-    Zeusd::Daemon.new(options).stop!
+    daemon.stop!
   end
 
   desc "status", "."
   def status
-    # Zeusd::Daemon.new(options).stop!
+
+  end
+
+  protected
+
+  def daemon
+    Zeusd::Daemon.new(:verbose => options[:verbose])
   end
 
 end
