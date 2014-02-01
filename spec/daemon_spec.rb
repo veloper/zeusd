@@ -2,12 +2,12 @@ require 'spec_helper'
 require 'zeusd'
 
 describe Zeusd::Daemon do
-  subject(:daemon) { Zeusd::Daemon.new(:cwd => DUMMY_RAILS_APP_PATH, :debug => true) }
+  subject(:daemon) { Zeusd::Daemon.new(:cwd => DUMMY_RAILS_APP_PATH) }
 
-  describe "#start!" do
-    it "returns a pid" do
-      daemon.start!.should be_a Fixnum
-      block_until_loaded
+  describe ".start!" do
+    it "returns a pid of the zeus stating process" do
+      pid = daemon.start!
+      expect(pid).to be_a Fixnum
     end
   end
 

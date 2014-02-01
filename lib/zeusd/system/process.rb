@@ -9,11 +9,11 @@ module Zeusd
       end
 
       def self.find(pid)
-        (record = System.process_records("ps -jp #{pid}").first) ? self.new(record) : nil
+        (record = System.process_records("ps -j -p #{pid}").first) ? self.new(record) : nil
       end
 
       def cwd
-        @cwd ||= `lsof -p #{pid}`.split("\n").find{|x| x[" cwd "]}.split.last.strip
+        @cwd ||= (path = `lsof -p #{pid}`.split("\n").find{|x| x[" cwd "]}.split.last.strip) ? Pathname.new(path).realpath : nil
       end
 
       def zeus_start?

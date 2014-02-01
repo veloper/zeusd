@@ -5,8 +5,7 @@ class ZeusdCLI < Thor
   class_option :verbose,  :type => :boolean,  :aliases => :v
   class_option :block,    :type => :boolean,  :aliases => :b
   class_option :cwd,      :type => :string,   :aliases => :d
-  class_option :pidfile,  :type => :string,   :aliases => :p
-  class_option :logfile,  :type => :string,   :aliases => :l
+  class_option :log,      :type => :string,   :aliases => :l
 
   desc "start", "."
   def start
@@ -27,13 +26,16 @@ class ZeusdCLI < Thor
 
   desc "status", "."
   def status
-
+    # Zeusd::Daemon.new(options).stop!
   end
 
   protected
 
   def daemon
-    Zeusd::Daemon.new(:verbose => options[:verbose])
+    Zeusd::Daemon.new(
+      :verbose  => options[:verbose],
+      :cwd      => options[:cwd]
+    )
   end
 
 end

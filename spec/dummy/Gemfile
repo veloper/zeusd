@@ -1,0 +1,6 @@
+source 'https://rubygems.org'
+
+gem 'rails', '3.2.16'
+gem 'zeus'
+gem 'zeusd', :path => '../../'
+gem 'sqlite3'
