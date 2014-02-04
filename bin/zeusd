@@ -9,7 +9,6 @@ class ZeusdCLI < Thor
 
   desc "start", "."
   def start
-    stop
     daemon.start! :block => options[:block]
   end
 

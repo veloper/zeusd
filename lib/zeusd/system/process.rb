@@ -1,3 +1,4 @@
+require 'timeout'
 module Zeusd
   module System
     class Process
@@ -21,23 +22,31 @@ module Zeusd
       end
 
       def sleeping?
-        !!stat["S"]
+        (state || "")["S"]
+      end
+
+      def state
+        `ps -o stat -p #{pid}`.split("\n")[1]
+      end
+
+      def alive?
+        !!system("ps -p #{pid} > /dev/null")
+      end
+
+      def dead?
+        !alive?
       end
 
       def kill!(signal = "INT")
         ::Process.kill(signal, pid.to_i)
       end
 
-      def kill_group!(signal = "INT")
-        ::Process.kill(signal, -pgid.to_i)
-      end
-
       def descendants(options = {})
-        children(options).map {|child| [child].concat(Array(child.descendants)) }.flatten.compact
+        children(options).map {|cp| [cp].concat(Array(cp.descendants)) }.flatten.compact
       end
 
       def children(options = {})
-        @children = Array(System.processes.find_all {|x| x.ppid == pid}.tap{|c| c.each(&:children)})
+        @children = Array(System.processes.find_all {|p| p.ppid == pid}.tap{|cp| cp.each(&:children)})
       end
 
     end

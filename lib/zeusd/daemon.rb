@@ -3,58 +3,52 @@ require 'childprocess'
 require 'pathname'
 
 module Zeusd
+  class DaemonException < StandardError; end
+
   class Daemon
-    attr_reader :cwd, :verbose, :update_queue, :activity_queue
+    attr_reader :cwd, :verbose
+    attr_reader :queue
+    attr_reader :state
+    attr_reader :child_process, :reader, :writer
 
     def initialize(options = {})
-      @cwd            = Pathname.new(options.fetch(:cwd, Dir.pwd)).realpath
-      @verbose        = options.fetch(:verbose, false)
-      @update_queue   = Queue.new
-      @activity_queue = Queue.new
+      @cwd     = Pathname.new(options.fetch(:cwd, Dir.pwd)).realpath
+      @verbose = options.fetch(:verbose, false)
+      @queue   = Queue.new
+      @state   = StateInterpreter.new
       on_update(&method(:puts)) if verbose
     end
 
-
     def stop!
-      process.kill_group! if process
-      socket_file.delete if socket_file.exist?
+      processes = process ? Array([process.descendants, process]).flatten : []
+      processes.each {|x| x.kill! if x.alive?} if processes.any?
+      (socket_file.delete rescue nil) if socket_file.exist?
+      if alive_processes = processes.all?(&:alive?)
+        raise DaemonException, "Unable to KILL processes: " + alive_processes.join(', ')
+      else
+        @process = nil
+        true
+      end
     end
 
     def start!(options = {})
-      reader, writer = IO.pipe
+      @process = Zeusd::System::Process.find(start_child_process!.pid)
 
-      p = ChildProcess.build("zeus", "start")
-      p.environment["BUNDLE_GEMFILE"] = cwd.join("Gemfile").to_path
-      p.io.stdout = p.io.stderr = writer
-      p.cwd = cwd.to_path
-      p.start
-
-      writer.close
-
-      Thread.new do
-        while (buffer = (reader.readpartial(4024) rescue nil)) do
-          update_queue   << buffer
-          activity_queue << buffer
-        end
-      end
-
-      if on_update.is_a?(Proc)
-        Thread.new do
-          while output = update_queue.pop
-            on_update.call(output)
+      if options.fetch(:block, false)
+        loop do
+          if loaded?
+            puts state.last_status
+            break
           end
+          sleep(0.1)
         end
       end
 
-      unless options.fetch(:block, false)
-        break if loaded? while activity_queue.pop
-      end
-
-      p.pid
+      process
     end
 
     def process
-      System.processes.find do |p|
+      @process ||= System.processes.find do |p|
         p.zeus_start? && p.cwd.to_path == cwd.to_path
       end
     end
@@ -70,6 +64,41 @@ module Zeusd
 
     def socket_file
       cwd.join('.zeus.sock')
+    end
+
+    protected
+
+    def start_child_process!
+      @reader, @writer = IO.pipe
+      @child_process = ChildProcess.build("zeus", "start")
+      @child_process.environment["BUNDLE_GEMFILE"] = cwd.join("Gemfile").to_path
+      @child_process.io.stdout = @child_process.io.stderr = @writer
+      @child_process.cwd       = cwd.to_path
+      @child_process.detach    = true
+      @child_process.start
+      @writer.close
+
+      Thread.new do
+        while (buffer = (reader.readpartial(10000) rescue nil)) do
+          state << buffer
+          queue << buffer
+        end
+      end
+
+      if on_update.is_a?(Proc)
+        Thread.new do
+          while output = queue.pop
+            on_update.call(output)
+          end
+        end
+      end
+
+      # require 'pry'
+      # binding.pry
+
+      sleep(0.1) until state.commands.any?
+
+      @child_process
     end
 
   end
