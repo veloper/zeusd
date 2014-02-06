@@ -21,9 +21,11 @@ module Zeusd
 
     def stop!
       processes = process ? Array([process.descendants, process]).flatten : []
-      processes.each {|x| x.kill! if x.alive?} if processes.any?
+      if processes.any?
+        Zeusd::Process.kill!(processes.map(&:pid))
+      end
       (socket_file.delete rescue nil) if socket_file.exist?
-      if alive_processes = processes.all?(&:alive?)
+      if (alive_processes = processes).all?(&:alive?)
         raise DaemonException, "Unable to KILL processes: " + alive_processes.join(', ')
       else
         @process = nil
@@ -32,7 +34,7 @@ module Zeusd
     end
 
     def start!(options = {})
-      @process = Zeusd::System::Process.find(start_child_process!.pid)
+      @process = Zeusd::Process.find(start_child_process!.pid)
 
       if options.fetch(:block, false)
         loop do
@@ -48,13 +50,13 @@ module Zeusd
     end
 
     def process
-      @process ||= System.processes.find do |p|
-        p.zeus_start? && p.cwd.to_path == cwd.to_path
+      @process ||= Process.all.find do |p|
+        !!p.command[/zeus.*start$/] && p.cwd == cwd
       end
     end
 
     def loaded?
-      process.descendants.all?(&:sleeping?)
+      process.descendants.all?(&:asleep?)
     end
 
     def on_update(&block)
@@ -92,9 +94,6 @@ module Zeusd
           end
         end
       end
-
-      # require 'pry'
-      # binding.pry
 
       sleep(0.1) until state.commands.any?
 
