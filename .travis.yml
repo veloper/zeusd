@@ -1,5 +1,9 @@
 language: ruby
+before_install: cd
 bundler_args: --without tool
+gemfile:
+  - Gemfile
+  - spec/dummy/Gemfile
 rvm:
   - 1.9.2
   - 1.9.3
