@@ -8,9 +8,9 @@ Gem::Specification.new do |spec|
   spec.version       = Zeusd::VERSION
   spec.authors       = ["Daniel Doezema"]
   spec.email         = ["daniel.doezema@gmail.com"]
-  spec.description   = "Gain more control over the Zuez gem"
-  spec.summary       = "Gain more control over the Zuez gem"
-  spec.homepage      = ""
+  spec.description   = "Run the Zeus gem as a daemon."
+  spec.summary       = "Run the Zeus gem as a daemon."
+  spec.homepage      = "https://github.com/veloper/zeusd"
   spec.license       = "New BSD"
 
   spec.files         = `git ls-files`.split($/)
