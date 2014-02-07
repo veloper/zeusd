@@ -1,8 +1,9 @@
 # Zeusd
 
-[![Build Status](https://travis-ci.org/veloper/zeusd.png?branch=master)](https://travis-ci.org/veloper/zeusd) | [![Code Climate](https://codeclimate.com/github/veloper/zeusd.png)](https://codeclimate.com/github/veloper/zeusd)
-
 Run the Zeud Gem as a daemon
+
+[![Build Status](https://travis-ci.org/veloper/zeusd.png?branch=master)](https://travis-ci.org/veloper/zeusd) [![Code Climate](https://codeclimate.com/github/veloper/zeusd.png)](https://codeclimate.com/github/veloper/zeusd)
+
 
 ## Installation
 
@@ -20,12 +21,18 @@ Or install it yourself as:
 
 ## Usage
 
+### Commands
+
 ```
-zeud start
-zeud stop
-zeud restart
-zeud status
+zeusd start [--block]
+zeusd stop
+zeusd restart
 ```
+
+### Global Flags
+* `--cwd=current/work/directory/of/rails/app` or alias `-d`
+* `--verbose` or `-v`
+
 
 ## Contributing
 
@@ -35,3 +42,7 @@ zeud status
 3. Commit your changes and specs (`git commit -am 'Add some feature'`)
 4. Push to the branch (`git push origin my-new-feature`)
 5. Create new Pull Request
+
+## License
+
+* Zeusd is released under the New BSD license. http://dan.doezema.com/licenses/new-bsd/
