@@ -1,5 +1,5 @@
 language: ruby
-before_install: bundle install --gemfile=dummy/Gemfile
+before_install: bundle install --gemfile=spec/dummy/Gemfile
 bundler_args: --without tool
 rvm:
   - 1.9.3
