@@ -10,8 +10,14 @@ module Zeusd
     attr_accessor :attributes
     attr_accessor :children
 
-    def initialize(attributes = {})
-      self.attributes = attributes
+    def initialize(attributes_or_pid)
+      case attributes_or_pid
+      when Hash
+        self.attributes = attributes_or_pid
+      else
+        self.attributes = {"pid" => attributes_or_pid.to_i}
+        reload!
+      end
     end
 
     def self.ps(options = {})
@@ -35,17 +41,10 @@ module Zeusd
       end
     end
 
-    # Note: Non-chinable, AND joined, Proc allowed for value
-    # {"attr" => value}
     def self.where(criteria, options = {})
       all(options).select do |process|
         criteria.all? do |key, value|
-          case value
-          when Array then value.include?(process.send(key))
-          when Proc  then !!value.call(process)
-          else
-            process.send(key) == value
-          end
+          process.send(key) == value
         end
       end
     end
@@ -56,12 +55,24 @@ module Zeusd
       end
     end
 
+    # TODO: wait for state change, and also issue a wait.
+    def self.wait_till_dead(pids = [])
+      pids = Array(pids).map(&:to_s)
+      loop do
+        break if (self.ps.map{|x| x["pid"]} & pids).length.zero?
+      end
+    end
+
     def self.kill!(pids, options = {})
-      signal = options.fetch(:signal, "INT")
-      pids   = Array(pids).map(&:to_i).select{|x| x > 0}
-      if pids.any?
-        system("kill -#{signal} #{pids.join(' ')}")
-        $?.success?
+      pids      = Array(pids).map(&:to_i).select{|x| x > 0}
+      processes = pids.map{|pid| self.new(pid)}
+      signal    = options.fetch(:signal, "TERM")
+      wait      = options.fetch(:wait, false)
+      return false if processes.any?(&:dead?)
+
+      if system("kill -#{signal} #{processes.map(&:pid).join(' ')}")
+        self.wait_till_dead(pids) if wait
+        true
       else
         false
       end
@@ -69,7 +80,7 @@ module Zeusd
 
     def reload!
       self.attributes = self.class.ps(:pid => pid).first || {}
-      @children   = nil
+      @children       = nil
       !attributes.empty?
     end
 
@@ -102,6 +113,10 @@ module Zeusd
       !!state.to_s["S"]
     end
 
+    def zombie?
+      !!state.to_s["Z"]
+    end
+
     def alive?
       reload!
       !attributes.empty?
@@ -112,8 +127,8 @@ module Zeusd
     end
 
     def kill!(options = {})
+      return false if dead?
       self.class.kill!(pid, options)
-      reload!
     end
 
     def descendants(options = {})
@@ -123,11 +138,7 @@ module Zeusd
     end
 
     def children(options = {})
-      @children = self.class.where("ppid" => pid).tap do |processes|
-        if options.fetch(:recursive, false)
-          processes.each{|p| p.children(options)}
-        end
-      end
+      @children = self.class.where("ppid" => pid)
     end
 
     def attributes=(hash)

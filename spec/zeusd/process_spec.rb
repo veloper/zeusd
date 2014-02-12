@@ -4,13 +4,52 @@ require 'zeusd'
 describe Zeusd::Process do
 
   def spawn_dummy_process(ttl_seconds = 1)
-    spawn("while [ $(date +\"%s\") -le #{Time.now.to_i + ttl_seconds} ]; do continue; done")
+    p = ChildProcess.build("ruby", "-e", "sleep #{ttl_seconds}")
+    p.detach = true
+    p.start
+    p.pid
   end
 
+  before(:each) { @dummy_pid = spawn_dummy_process }
   subject(:model) { Zeusd::Process }
 
-  describe "process management class methods" do
-    before(:each) { @dummy_pid = spawn_dummy_process }
+
+  describe "process instance" do
+    subject { model.find(@dummy_pid) }
+    it { should be_a Zeusd::Process }
+    it { should be_alive }
+    it { should_not be_dead }
+  end
+
+  describe "instance methods" do
+    subject { model.find(@dummy_pid) }
+
+    describe ".kill!" do
+      context "when process exists" do
+        it "kills the process and returns true" do
+          subject.kill!(:wait => true).should be_true
+          subject.should be_dead, subject.attributes.inspect
+        end
+      end
+
+      context "when processes does not exists" do
+        it "returns false" do
+          subject.kill!(:wait => true).should be_true
+          subject.kill!.should be_false
+        end
+      end
+    end
+  end
+
+
+  describe "class methods" do
+
+    # describe "::kill!" do
+    #   it "kills a process" do
+    #     model.kill!(@dummy_pid)
+    #     model.find(@dummy_pid).should be_nil
+    #   end
+    # end
 
     describe "::ps" do
       subject { model.ps }
@@ -75,7 +114,7 @@ describe Zeusd::Process do
         it { subject.pid.should eq(@dummy_pid) }
       end
       context "non-existant process" do
-        before(:each) { ::Process.kill("KILL", @dummy_pid); ::Process.waitpid(@dummy_pid) }
+        before(:each) { Zeusd::Process.kill!(@dummy_pid, :wait => true) }
         it { should be_nil }
       end
     end
