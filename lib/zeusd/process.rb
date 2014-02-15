@@ -55,11 +55,11 @@ module Zeusd
       end
     end
 
-    # TODO: wait for state change, and also issue a wait.
-    def self.wait_till_dead(pids = [])
+    def self.wait(pids = [])
       pids = Array(pids).map(&:to_s)
       loop do
         break if (self.ps.map{|x| x["pid"]} & pids).length.zero?
+        sleep(0.1)
       end
     end
 
@@ -71,7 +71,7 @@ module Zeusd
       return false if processes.any?(&:dead?)
 
       if system("kill -#{signal} #{processes.map(&:pid).join(' ')}")
-        self.wait_till_dead(pids) if wait
+        self.wait(pids) if wait
         true
       else
         false
@@ -111,10 +111,6 @@ module Zeusd
 
     def asleep?
       !!state.to_s["S"]
-    end
-
-    def zombie?
-      !!state.to_s["Z"]
     end
 
     def alive?

@@ -1,34 +1,49 @@
 require 'spec_helper'
+require 'benchmark'
 require 'zeusd'
 
 describe Zeusd::Process do
 
-  def spawn_dummy_process(ttl_seconds = 1)
-    p = ChildProcess.build("ruby", "-e", "sleep #{ttl_seconds}")
-    p.detach = true
+  def spawn_dummy_process(ttl = 1, usr1delay = 0.5, options = {})
+    ttl       = ttl.to_f.to_s
+    usr1delay = usr1delay.to_f.to_s
+    script    = File.expand_path("../../support/dummy_process.rb", __FILE__)
+    p         = ChildProcess.build(script, ttl, usr1delay)
+    p.cwd     = options[:cwd] if options[:cwd]
+    p.detach  = true
     p.start
-    p.pid
+    p
   end
 
-  before(:each) { @dummy_pid = spawn_dummy_process }
+  before(:each) do
+    @dummy_ttl       = 1
+    @dummy_usr1delay = 0.5
+    @dummy_process   = spawn_dummy_process(@dummy_ttl, @dummy_usr1delay)
+  end
   subject(:model) { Zeusd::Process }
 
 
   describe "process instance" do
-    subject { model.find(@dummy_pid) }
+    subject { model.find(@dummy_process.pid) }
     it { should be_a Zeusd::Process }
     it { should be_alive }
     it { should_not be_dead }
   end
 
   describe "instance methods" do
-    subject { model.find(@dummy_pid) }
+    subject { model.find(@dummy_process.pid) }
+
+    describe ".cwd" do
+      it "return the current working directory" do
+        subject.cwd.to_path == Dir.pwd
+      end
+    end
 
     describe ".kill!" do
       context "when process exists" do
         it "kills the process and returns true" do
           subject.kill!(:wait => true).should be_true
-          subject.should be_dead, subject.attributes.inspect
+          subject.should be_dead
         end
       end
 
@@ -44,12 +59,25 @@ describe Zeusd::Process do
 
   describe "class methods" do
 
-    # describe "::kill!" do
-    #   it "kills a process" do
-    #     model.kill!(@dummy_pid)
-    #     model.find(@dummy_pid).should be_nil
-    #   end
-    # end
+    describe "::kill!" do
+      it "kills a process in under 0.1 seconds" do
+        model.kill!(@dummy_process.pid)
+        sleep 0.1
+        model.find(@dummy_process.pid).should be_nil
+      end
+
+      it "blocks until the process exits" do
+        Benchmark.realtime do
+          model.kill!(@dummy_process.pid, :signal => "USR1", :wait => true).should be_true
+        end.should be < 1.0
+      end
+    end
+
+    describe "::wait" do
+      it "blocks until the process exits" do
+        Benchmark.realtime { model.wait(@dummy_process.pid) }.should be > 1
+      end
+    end
 
     describe "::ps" do
       subject { model.ps }
@@ -58,7 +86,7 @@ describe Zeusd::Process do
         subject.all?{|x| x.is_a?(Hash)}.should be_true
       end
       it "includes the dummy process" do
-        subject.map{|x|x["pid"]}.should include(@dummy_pid.to_s)
+        subject.map{|x|x["pid"]}.should include(@dummy_process.pid.to_s)
       end
       it "allows additional -o keywords" do
         model.ps(:keywords => "user").first.should include("user")
@@ -99,7 +127,7 @@ describe Zeusd::Process do
           it { should have_at_least(2).items }
         end
         context "criteria not met" do
-          subject {model.where(:pid => @dummy_pid, :pgid => 9999999999999)}
+          subject {model.where(:pid => @dummy_process.pid, :pgid => 9999999999999)}
           it { should be_an Array }
           it { should be_empty }
         end
@@ -107,14 +135,14 @@ describe Zeusd::Process do
     end
 
     describe "::find" do
-      subject { model.find(@dummy_pid) }
+      subject { model.find(@dummy_process.pid) }
       context "existing process" do
         it { should be_a Zeusd::Process }
         it { should be_alive }
-        it { subject.pid.should eq(@dummy_pid) }
+        it { subject.pid.should eq(@dummy_process.pid) }
       end
       context "non-existant process" do
-        before(:each) { Zeusd::Process.kill!(@dummy_pid, :wait => true) }
+        before(:each) { @dummy_process.stop }
         it { should be_nil }
       end
     end
