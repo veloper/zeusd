@@ -29,8 +29,8 @@ module Zeusd
     attr_reader :cwd, :verbose, :log_file, :log_queue, :interpreter, :child_process
 
     def initialize(options = {})
-      @cwd         = Pathname.new(options.fetch(:cwd, Dir.pwd)).realpath
-      @verbose     = options.fetch(:verbose, false)
+      @cwd         = Pathname.new(options[:cwd] || Dir.pwd).realpath
+      @verbose     = !!options[:verbose]
       @interpreter = Interpreter.new
     end
 
