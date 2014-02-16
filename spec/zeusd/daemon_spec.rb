@@ -19,16 +19,11 @@ describe Zeusd::Daemon do
     subject { daemon.start!.stop! }
     it { should be daemon }
     it { should_not be_loaded }
-
-    # context "when processes can't be killed" do
-    #   it "should raise a " do
-    #   end
-    # end
   end
 
   describe ".restart!" do
     subject { daemon }
-    context "when daemon is started" do
+    context "when daemon is already running" do
       before { subject.start!.restart!(:block => true) }
       it { should be_loaded }
     end

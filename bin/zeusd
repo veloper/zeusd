@@ -4,36 +4,35 @@ require "zeusd"
 class ZeusdCLI < Thor
   class_option :verbose,  :type => :boolean,  :aliases => :v
   class_option :block,    :type => :boolean,  :aliases => :b
-  class_option :cwd,      :type => :string,   :aliases => :d
-  class_option :log,      :type => :string,   :aliases => :l
+  class_option :cwd,      :type => :string
 
-  desc "start", "."
+  desc "start", "Start the daemon."
   def start
-    daemon.start! :block => options[:block]
+    daemon.start!(:block => options[:block])
   end
 
-  desc "restart", "."
+  desc "restart", "Restart the daemon."
   def restart
-    daemon.restart!
+    daemon.restart!(:block => options[:block])
   end
 
-  desc "stop", "."
+  desc "stop", "Stop the daemon."
   def stop
     daemon.stop!
   end
 
-  desc "status", "."
-  def status
-    # Zeusd::Daemon.new(options).stop!
+  desc "tail", "Tail the daemon's log."
+  method_option :follow, :type => :boolean, :aliases => :f
+  def tail
+    cmd = "tail#{options[:follow] ? ' -f' : ''} -n 25 #{daemon.log_file.to_path}"
+    puts "\n\n[Zeusd] exec(#{cmd})\n\n"
+    exec(cmd)
   end
 
   protected
 
   def daemon
-    Zeusd::Daemon.new(
-      :verbose  => options[:verbose],
-      :cwd      => options[:cwd]
-    )
+    Zeusd::Daemon.new(:verbose => options[:verbose], :cwd => options[:cwd])
   end
 
 end

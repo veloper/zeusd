@@ -26,9 +26,7 @@ module Zeusd
       puts(output) if verbose?
     end
 
-    attr_reader :cwd, :verbose, :log_file, :log_queue
-    attr_reader :interpreter
-    attr_reader :child_process
+    attr_reader :cwd, :verbose, :log_file, :log_queue, :interpreter, :child_process
 
     def initialize(options = {})
       @cwd         = Pathname.new(options.fetch(:cwd, Dir.pwd)).realpath
