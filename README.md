@@ -1,18 +1,12 @@
 # Zeusd [![Gem Version](https://badge.fury.io/rb/zeusd.png)](http://badge.fury.io/rb/zeusd) [![Build Status](https://travis-ci.org/veloper/zeusd.png?branch=master)](https://travis-ci.org/veloper/zeusd) [![Code Climate](https://codeclimate.com/github/veloper/zeusd.png)](https://codeclimate.com/github/veloper/zeusd)
 
-Zeusd a wraps around the Zeus Gem and turns it into a daemon.
+*Run Zeus as a daemon.*
 
+## Introduction
 
+Zeus**d** lets you work with the [Zeus Gem](https://github.com/burke/zeus) like it's a daemon -- allowing greater control and easier scripting
 
-## Installation
-
-```
-$ gem install zeusd
-```
-
-## Usage
-
-### Main Commands
+### Primary Commands
 
 ```
 $ zeusd start   [--cwd=/path/to/rails/root]
@@ -32,6 +26,12 @@ $ zeusd stop    [--cwd=/path/to/rails/root]
 ```
 $ zeusd tail    [--cwd=/path/to/rails/root]
                 [--follow | -f]
+```
+
+## Installation
+
+```
+$ gem install zeusd
 ```
 
 ## Contributing
