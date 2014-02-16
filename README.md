@@ -1,10 +1,14 @@
 # Zeusd [![Gem Version](https://badge.fury.io/rb/zeusd.png)](http://badge.fury.io/rb/zeusd) [![Build Status](https://travis-ci.org/veloper/zeusd.png?branch=master)](https://travis-ci.org/veloper/zeusd) [![Code Climate](https://codeclimate.com/github/veloper/zeusd.png)](https://codeclimate.com/github/veloper/zeusd)
 
-*Run Zeus as a daemon.*
+Zeusd aims to provide greater control and easier scripting of the [Zeus Gem](https://github.com/burke/zeus) via daemonization.
 
-## Introduction
+## Feautres
 
-Zeus**d** lets you work with the [Zeus Gem](https://github.com/burke/zeus) like it's a daemon -- allowing greater control and easier scripting
+* Run the [Zeus Gem](https://github.com/burke/zeus) as a daemon.
+* Optionally block execution until Zeus has finished loaded using the `--block` flag.
+* Manage multiple zeusd daemons using the `--cwd` flag.
+
+## Usage
 
 ### Primary Commands
 
