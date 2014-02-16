@@ -1,78 +1,115 @@
 require 'thread'
 require 'childprocess'
 require 'pathname'
+require 'hooks'
 
 module Zeusd
   class DaemonException < StandardError; end
 
   class Daemon
-    attr_reader :cwd, :verbose
-    attr_reader :queue
-    attr_reader :state
-    attr_reader :child_process, :reader, :writer
+    include Hooks
+    define_hooks :after_output, :after_start!, :after_stop!, :after_start_process!
 
-    def initialize(options = {})
-      @cwd     = Pathname.new(options.fetch(:cwd, Dir.pwd)).realpath
-      @verbose = options.fetch(:verbose, false)
-      @queue   = Queue.new
-      @state   = StateInterpreter.new
-      on_update(&method(:puts)) if verbose
+    after_start!  { log(:start) }
+    after_stop!   { log(:stop) }
+    after_output  {|x| log(x, :zeus) }
+
+    after_start_process! :ensure_log_worker
+
+    after_stop! do
+      (socket_file.delete rescue nil) if socket_file.exist?
+      @process = nil
     end
 
-    def stop!
-      processes = process ? Array([process.descendants, process]).flatten : []
-      if processes.any?
-        Zeusd::Process.kill!(processes.map(&:pid))
-      end
-      (socket_file.delete rescue nil) if socket_file.exist?
-      if (alive_processes = processes).all?(&:alive?)
-        raise DaemonException, "Unable to KILL processes: " + alive_processes.join(', ')
-      else
-        @process = nil
-        true
-      end
+    after_output do |output|
+      interpreter.translate(output)
+      puts(output) if verbose?
+    end
+
+    attr_reader :cwd, :verbose, :log_file, :log_queue
+    attr_reader :interpreter
+    attr_reader :child_process
+
+    def initialize(options = {})
+      @cwd         = Pathname.new(options.fetch(:cwd, Dir.pwd)).realpath
+      @verbose     = options.fetch(:verbose, false)
+      @interpreter = Interpreter.new
     end
 
     def start!(options = {})
-      @process = Zeusd::Process.find(start_child_process!.pid)
+      @process = Zeusd::Process.find(start_process!.pid)
 
       if options.fetch(:block, false)
-        loop do
-          if loaded?
-            puts state.last_status
-            break
-          end
-          sleep(0.1)
-        end
+        sleep(0.1) until loaded?
       end
 
-      process
+      self
+    ensure
+      run_hook :after_start!
+    end
+
+    def restart!(options = {})
+      stop!.start!(options)
+    end
+
+    def stop!
+      return self unless process
+
+      # Kill Pids and Wait
+      process.kill!(:recursive => true, :wait => true)
+
+      # Check for remaining processes
+      if[process, process.descendants].flatten.select(&:alive?).any?
+        raise DaemonException, "Unable to KILL processes: " + alive_processes.join(', ')
+      end
+
+      self
+    ensure
+      run_hook :after_stop!
     end
 
     def process
-      @process ||= Process.all.find do |p|
-        !!p.command[/zeus.*start$/] && p.cwd == cwd
-      end
+      @process ||= Process.all.find {|p| !!p.command[/zeus.*start$/] && p.cwd == cwd }
     end
 
     def loaded?
-      process.descendants.all?(&:asleep?)
+      interpreter.complete?
     end
 
-    def on_update(&block)
-      @on_update = block if block_given?
-      @on_update
+
+    def log_file
+      cwd.join('log/zeusd.log')
     end
 
     def socket_file
       cwd.join('.zeus.sock')
     end
 
+    def verbose?
+      !!verbose
+    end
+
     protected
 
-    def start_child_process!
+    def log(entry, type = :zeusd)
+      log_queue << "<#{type.to_s} utc='#{Time.now.utc}'>#{entry}</#{type.to_s}>\n"
+    end
+
+    def log_queue
+      @log_queue ||= Queue.new
+    end
+
+    def ensure_log_worker
+      @log_worker ||= Thread.new do
+        while value = log_queue.shift
+          log_file.open("a+") {|f| f.write(value) }
+        end
+      end
+    end
+
+    def start_process!
       @reader, @writer = IO.pipe
-      @child_process = ChildProcess.build("zeus", "start")
+      @child_process   = ChildProcess.build("zeus", "start")
       @child_process.environment["BUNDLE_GEMFILE"] = cwd.join("Gemfile").to_path
       @child_process.io.stdout = @child_process.io.stderr = @writer
       @child_process.cwd       = cwd.to_path
@@ -80,22 +117,15 @@ module Zeusd
       @child_process.start
       @writer.close
 
+      run_hook :after_start_process!
+
       Thread.new do
-        while (buffer = (reader.readpartial(10000) rescue nil)) do
-          state << buffer
-          queue << buffer
+        while (buffer = (@reader.readpartial(10000) rescue nil)) do
+          run_hook :after_output, buffer
         end
       end
 
-      if on_update.is_a?(Proc)
-        Thread.new do
-          while output = queue.pop
-            on_update.call(output)
-          end
-        end
-      end
-
-      sleep(0.1) until state.commands.any?
+      sleep 0.1 until interpreter.commands.any?
 
       @child_process
     end

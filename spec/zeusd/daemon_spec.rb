@@ -3,23 +3,56 @@ require 'spec_helper'
 describe Zeusd::Daemon do
   let(:daemon) { Zeusd::Daemon.new(:cwd => DUMMY_APP_PATH) }
   after(:each) { daemon.stop! }
+
   describe ".start!" do
+    subject { daemon.start!(:verbose => true) }
+    it { should be daemon }
+    it { should_not be_loaded }
 
-    context "blocking" do
+    describe ":block option" do
       subject { daemon.start!(:block => true) }
-      it { should be_a Zeusd::Process }
+      it { should be_loaded }
+    end
+  end
 
-      it "should be a zeus start process" do
-        process = daemon.start!(:block => true)
-        process.command[/zeus.*?start$/].should_not be_nil, "Process Command: " + process.command
+  describe ".stop!" do
+    subject { daemon.start!.stop! }
+    it { should be daemon }
+    it { should_not be_loaded }
+
+    # context "when processes can't be killed" do
+    #   it "should raise a " do
+    #   end
+    # end
+  end
+
+  describe ".restart!" do
+    subject { daemon }
+    context "when daemon is started" do
+      before { subject.start!.restart!(:block => true) }
+      it { should be_loaded }
+    end
+  end
+
+  describe ".process" do
+    context "before start" do
+      subject { daemon.process }
+      it { should be_nil }
+    end
+
+    context "after start" do
+      subject { daemon.start!.process }
+      it { should be_a Zeusd::Process}
+      it { should be_alive }
+      its "a zeus start process" do
+        subject.command.should match(/zeus.*?start$/)
       end
     end
 
-    context "non-blocking" do
-      subject { daemon.start! }
-      it { should be_a Zeusd::Process }
+    context "after start and stop" do
+      subject { daemon.start!.stop!.process }
+      it { should be_nil }
     end
-
   end
 
 end

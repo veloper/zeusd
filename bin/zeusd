@@ -14,8 +14,7 @@ class ZeusdCLI < Thor
 
   desc "restart", "."
   def restart
-    stop
-    start
+    daemon.restart!
   end
 
   desc "stop", "."

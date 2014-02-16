@@ -7,12 +7,10 @@ module Zeusd
       "stat"    => ->(x){x.to_s},
       "command" => ->(x){x.to_s}
     }
-    attr_accessor :attributes
-    attr_accessor :children
+    attr_accessor :attributes, :children
 
     def initialize(attributes_or_pid)
-      case attributes_or_pid
-      when Hash
+      if attributes_or_pid.is_a? Hash
         self.attributes = attributes_or_pid
       else
         self.attributes = {"pid" => attributes_or_pid.to_i}
@@ -124,7 +122,13 @@ module Zeusd
 
     def kill!(options = {})
       return false if dead?
-      self.class.kill!(pid, options)
+      opts = options.dup
+
+      pids = [pid].tap do |x|
+        x.concat(descendants.map(&:pid)) if !!opts.delete(:recursive)
+      end
+
+      self.class.kill!(pids, opts)
     end
 
     def descendants(options = {})
