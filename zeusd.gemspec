@@ -18,10 +18,10 @@ Gem::Specification.new do |spec|
   spec.test_files    = spec.files.grep(%r{^(test|spec|features)/})
   spec.require_paths = ["lib"]
 
-  spec.add_runtime_dependency "thor"
-  spec.add_runtime_dependency "childprocess"
-  spec.add_runtime_dependency "hooks"
-  spec.add_runtime_dependency "zeus"
+  spec.add_runtime_dependency "thor"         , "~> 0.18.1"
+  spec.add_runtime_dependency "childprocess" , "~> 0.4.0"
+  spec.add_runtime_dependency "hooks"        , "~> 0.3.3"
+  spec.add_runtime_dependency "zeus"         , "~> 0.13.3"
 
   spec.add_development_dependency "bundler", "~> 1.3"
   spec.add_development_dependency "rake"
