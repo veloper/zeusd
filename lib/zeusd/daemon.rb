@@ -7,26 +7,24 @@ module Zeusd
   class DaemonException < StandardError; end
 
   class Daemon
+    attr_reader :cwd, :verbose, :log_file, :log_queue, :interpreter, :child_process
+
+
     include Hooks
-    define_hooks :after_output, :after_start!, :after_stop!, :after_start_process!
+    define_hooks :after_start!, :after_stop!, :after_output
 
     after_start!  { log(:start) }
     after_stop!   { log(:stop) }
     after_output  {|x| log(x, :zeus) }
 
-    after_start_process! :ensure_log_worker
-
     after_stop! do
       (socket_file.delete rescue nil) if socket_file.exist?
-      @process = nil
     end
 
     after_output do |output|
       interpreter.translate(output)
       puts(output) if verbose?
     end
-
-    attr_reader :cwd, :verbose, :log_file, :log_queue, :interpreter, :child_process
 
     def initialize(options = {})
       @cwd         = Pathname.new(options[:cwd] || Dir.pwd).realpath
@@ -35,7 +33,9 @@ module Zeusd
     end
 
     def start!(options = {})
-      @process = Zeusd::Process.find(start_process!.pid)
+      start_child_process!
+
+      @process = Zeusd::Process.find(child_process.pid)
 
       if options.fetch(:block, false)
         sleep(0.1) until loaded?
@@ -53,13 +53,15 @@ module Zeusd
     def stop!
       return self unless process
 
-      # Kill Pids and Wait
+      # Kill process tree and wait for exits
       process.kill!(:recursive => true, :wait => true)
 
       # Check for remaining processes
       if[process, process.descendants].flatten.select(&:alive?).any?
         raise DaemonException, "Unable to KILL processes: " + alive_processes.join(', ')
       end
+
+      @process = nil
 
       self
     ensure
@@ -73,7 +75,6 @@ module Zeusd
     def loaded?
       interpreter.complete?
     end
-
 
     def log_file
       cwd.join('log/zeusd.log')
@@ -105,17 +106,18 @@ module Zeusd
       end
     end
 
-    def start_process!
+    def start_child_process!
       @reader, @writer = IO.pipe
-      @child_process   = ChildProcess.build("zeus", "start")
+      @child_process = ChildProcess.build("zeus", "start")
       @child_process.environment["BUNDLE_GEMFILE"] = cwd.join("Gemfile").to_path
       @child_process.io.stdout = @child_process.io.stderr = @writer
-      @child_process.cwd       = cwd.to_path
-      @child_process.detach    = true
+      @child_process.cwd = cwd.to_path
+      @child_process.detach = true
       @child_process.start
+
       @writer.close
 
-      run_hook :after_start_process!
+      ensure_log_worker
 
       Thread.new do
         while (buffer = (@reader.readpartial(10000) rescue nil)) do
