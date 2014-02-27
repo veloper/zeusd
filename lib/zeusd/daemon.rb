@@ -4,6 +4,7 @@ require 'childprocess'
 require 'pathname'
 require 'hooks'
 require 'file-tail'
+require 'json'
 
 module Zeusd
   class DaemonException < StandardError; end
