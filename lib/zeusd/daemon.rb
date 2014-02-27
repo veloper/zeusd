@@ -1,3 +1,4 @@
+require 'logger'
 require 'thread'
 require 'childprocess'
 require 'pathname'
@@ -7,15 +8,12 @@ module Zeusd
   class DaemonException < StandardError; end
 
   class Daemon
-    attr_reader :cwd, :verbose, :log_file, :log_queue, :interpreter, :child_process
-
-
     include Hooks
-    define_hooks :after_start!, :after_stop!, :after_output
 
-    after_start!  { log(:start) }
-    after_stop!   { log(:stop) }
-    after_output  {|x| log(x, :zeus) }
+    define_hooks :after_start!, :after_stop!, :before_stop!, :after_output
+
+    after_start! { logger.info("Zeusd") { "Start - pid(#{process.pid})" } }
+    before_stop! { logger.info("Zeusd") { "Stop  - pid(#{process ? process.pid : 'nil'})" } }
 
     after_stop! do
       (socket_file.delete rescue nil) if socket_file.exist?
@@ -23,8 +21,11 @@ module Zeusd
 
     after_output do |output|
       interpreter.translate(output)
-      puts(output) if verbose?
+      logger.info("Zeus"){output}
+      puts(output) if verbose
     end
+
+    attr_reader :cwd, :verbose, :log_file, :interpreter, :child_process
 
     def initialize(options = {})
       @cwd         = Pathname.new(options[:cwd] || Dir.pwd).realpath
@@ -51,6 +52,8 @@ module Zeusd
     end
 
     def stop!
+      run_hook :before_stop!
+
       return self unless process
 
       # Kill process tree and wait for exits
@@ -84,24 +87,16 @@ module Zeusd
       cwd.join('.zeus.sock')
     end
 
-    def verbose?
-      !!verbose
-    end
-
     protected
 
-    def log(entry, type = :zeusd)
-      log_queue << "<#{type.to_s} utc='#{Time.now.utc}'>#{entry}</#{type.to_s}>\n"
-    end
-
-    def log_queue
-      @log_queue ||= Queue.new
-    end
-
-    def ensure_log_worker
-      @log_worker ||= Thread.new do
-        while value = log_queue.shift
-          log_file.open("a+") {|f| f.write(value) }
+    def logger
+      @logger ||= Logger.new(log_file.to_path).tap do |x|
+        x.formatter = proc do |severity, datetime, progname, msg|
+          color  = progname["Zeusd"] ? 36 : 35
+          ts     = datetime.strftime('%Y-%m-%d %H:%M:%S')
+          prefix = "[#{ts}][#{progname.ljust(6)}]"
+          msg    = msg.chomp.gsub("\n", "\n".ljust(prefix.length) + "\e[#{color}m|\e[0m ")
+          "\e[#{color}m#{prefix}\e[0m" + " #{msg}\n"
         end
       end
     end
@@ -116,8 +111,6 @@ module Zeusd
       @child_process.start
 
       @writer.close
-
-      ensure_log_worker
 
       Thread.new do
         while (buffer = (@reader.readpartial(10000) rescue nil)) do
