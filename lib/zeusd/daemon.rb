@@ -3,6 +3,7 @@ require 'thread'
 require 'childprocess'
 require 'pathname'
 require 'hooks'
+require 'file-tail'
 
 module Zeusd
   class DaemonException < StandardError; end
@@ -12,16 +13,16 @@ module Zeusd
 
     define_hooks :after_start!, :after_stop!, :before_stop!, :after_output
 
-    after_start! { logger.info("Zeusd") { "Start - pid(#{process.pid})" } }
-    before_stop! { logger.info("Zeusd") { "Stop  - pid(#{process ? process.pid : 'nil'})" } }
+    after_start! { log_event :start, :process => process ? process.attributes : nil }
+    before_stop! { log_event :stop, :process => process ? process.attributes : nil }
 
     after_stop! do
-      (socket_file.delete rescue nil) if socket_file.exist?
+      (zeus_socket_file.delete rescue nil) if zeus_socket_file.exist?
     end
 
     after_output do |output|
       interpreter.translate(output)
-      logger.info("Zeus"){output}
+      # logger.info("Zeus"){output}
       puts(output) if verbose
     end
 
@@ -42,9 +43,9 @@ module Zeusd
         sleep(0.1) until loaded?
       end
 
-      self
-    ensure
       run_hook :after_start!
+
+      self
     end
 
     def restart!(options = {})
@@ -66,9 +67,9 @@ module Zeusd
 
       @process = nil
 
-      self
-    ensure
       run_hook :after_stop!
+
+      self
     end
 
     def process
@@ -79,45 +80,63 @@ module Zeusd
       interpreter.complete?
     end
 
+    def log_event(type, details = nil)
+      logger.info("EVENT") do
+        ">>> #{type.to_s.upcase}" + (details ? (" >>> " + JSON.pretty_generate(details)) : "")
+      end
+    end
+
+    def logger
+      @logger ||= Logger.new(log_file.to_path).tap do |x|
+        x.formatter = proc do |severity, datetime, type, msg|
+          prefix    = "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}][#{type}]"
+          msg       = msg.chomp.gsub("\n", "\n".ljust(prefix.length) + "\e[36m|\e[0m ")
+          "\e[36m#{prefix}\e[0m" + " #{msg}\n"
+        end
+      end
+    end
+
+    def zeus_socket_file
+      cwd.join('.zeus.sock')
+    end
+
     def log_file
       cwd.join('log/zeusd.log')
     end
 
-    def socket_file
-      cwd.join('.zeus.sock')
+    def zeus_log_file
+      cwd.join('.zeus.log').tap do |path|
+        FileUtils.touch(path.to_path)
+      end
     end
 
     protected
 
-    def logger
-      @logger ||= Logger.new(log_file.to_path).tap do |x|
-        x.formatter = proc do |severity, datetime, progname, msg|
-          color  = progname["Zeusd"] ? 36 : 35
-          ts     = datetime.strftime('%Y-%m-%d %H:%M:%S')
-          prefix = "[#{ts}][#{progname.ljust(6)}]"
-          msg    = msg.chomp.gsub("\n", "\n".ljust(prefix.length) + "\e[#{color}m|\e[0m ")
-          "\e[#{color}m#{prefix}\e[0m" + " #{msg}\n"
-        end
-      end
-    end
-
     def start_child_process!
-      @reader, @writer = IO.pipe
+      # Truncate and cast to File
+      zeus_log_file.open("w") {}
+      std_file = File.new(zeus_log_file, 'w+').tap{|x| x.sync = true}
+
+      # Prep and Start child process
       @child_process = ChildProcess.build("zeus", "start")
       @child_process.environment["BUNDLE_GEMFILE"] = cwd.join("Gemfile").to_path
-      @child_process.io.stdout = @child_process.io.stderr = @writer
-      @child_process.cwd = cwd.to_path
-      @child_process.detach = true
+      @child_process.io.stderr = std_file
+      @child_process.io.stdout = std_file
+      @child_process.cwd       = cwd.to_path
+      @child_process.detach    = true
       @child_process.start
 
-      @writer.close
-
+      # Start tailing child process output
       Thread.new do
-        while (buffer = (@reader.readpartial(10000) rescue nil)) do
-          run_hook :after_output, buffer
+        File.open(std_file.to_path) do |log|
+          log.extend(File::Tail)
+          log.interval = 0.1
+          log.backward(100)
+          log.tail {|line| run_hook(:after_output, line) }
         end
       end
 
+      # Block until the first zeus command has been registered
       sleep 0.1 until interpreter.commands.any?
 
       @child_process
