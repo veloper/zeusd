@@ -44,8 +44,6 @@ module Zeusd
       false
     end
 
-
-
     def last_update
       @lines[@lines.rindex(&:update?)..-1].join("\n").to_s
     end
@@ -83,10 +81,6 @@ module Zeusd
         if self[0] == "\e" && !self.index('m').nil?
           self[0..self.index('m')]
         end
-      end
-
-      def color?
-        !!color
       end
 
     end
