@@ -12,19 +12,23 @@ module Zeusd
   class Daemon
     include Hooks
 
-    define_hooks :after_start!, :after_stop!, :before_stop!, :after_output
+    define_hooks :before_action, :after_action, :after_output
 
-    after_start! { log_event :start, :process => process ? process.attributes : nil }
-    before_stop! { log_event :stop, :process => process ? process.attributes : nil }
+    before_action do |action|
+      details = {}
+      details[:process] = process.attributes if process
+      log_event("Before: #{action}", details)
+    end
 
-    after_stop! do
-      (zeus_socket_file.delete rescue nil) if zeus_socket_file.exist?
+    after_action do |action|
+      details = {}
+      details[:process] = process.attributes if process
+      log_event("After: #{action}", details)
     end
 
     after_output do |output|
       interpreter.translate(output)
-      # logger.info("Zeus"){output}
-      puts(output) if verbose
+      puts output if verbose
     end
 
     attr_reader :cwd, :verbose, :log_file, :interpreter, :child_process
@@ -36,6 +40,8 @@ module Zeusd
     end
 
     def start!(options = {})
+      run_hook :before_action, __method__
+
       start_child_process!
 
       @process = Zeusd::Process.find(child_process.pid)
@@ -44,22 +50,31 @@ module Zeusd
         sleep(0.1) until loaded?
       end
 
-      run_hook :after_start!
+      run_hook :after_action, __method__
 
       self
     end
 
     def restart!(options = {})
+      run_hook :before_action, __method__
+
       stop!.start!(options)
+
+      run_hook :after_action, __method__
+
+      self
     end
 
     def stop!
-      run_hook :before_stop!
+      run_hook :before_action, __method__
 
       return self unless process
 
       # Kill process tree and wait for exits
       process.kill!(:recursive => true, :wait => true)
+
+      # Clean up socket file if stil exists
+      (zeus_socket_file.delete rescue nil) if zeus_socket_file.exist?
 
       # Check for remaining processes
       if[process, process.descendants].flatten.select(&:alive?).any?
@@ -68,7 +83,7 @@ module Zeusd
 
       @process = nil
 
-      run_hook :after_stop!
+      run_hook :after_action, __method__
 
       self
     end
@@ -81,37 +96,32 @@ module Zeusd
       interpreter.complete?
     end
 
-    def log_event(type, details = nil)
-      logger.info("EVENT") do
-        ">>> #{type.to_s.upcase}" + (details ? (" >>> " + JSON.pretty_generate(details)) : "")
-      end
-    end
-
-    def logger
-      @logger ||= Logger.new(log_file.to_path).tap do |x|
-        x.formatter = proc do |severity, datetime, type, msg|
-          prefix    = "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}][#{type}]"
-          msg       = msg.chomp.gsub("\n", "\n".ljust(prefix.length) + "\e[36m|\e[0m ")
-          "\e[36m#{prefix}\e[0m" + " #{msg}\n"
-        end
-      end
-    end
-
     def zeus_socket_file
       cwd.join('.zeus.sock')
     end
 
-    def log_file
-      cwd.join('log/zeusd.log')
-    end
-
     def zeus_log_file
-      cwd.join('.zeus.log').tap do |path|
+      cwd.join('log', 'zeus.log').tap do |path|
         FileUtils.touch(path.to_path)
       end
     end
 
     protected
+
+    def log_event(type, details = nil)
+      logger.info do
+        "\e[35m[Event] (#{type})\e[0m" + (!details.empty? ? " " + JSON.pretty_generate(details) : "")
+      end
+    end
+
+    def logger
+      @logger ||= Logger.new(cwd.join('log', 'zeusd.log').to_path).tap do |x|
+        x.formatter = proc do |severity, datetime, progname, msg|
+          prefix    = "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}]"
+          "\e[36m#{prefix}\e[0m" + " #{msg}\n"
+        end
+      end
+    end
 
     def start_child_process!
       # Truncate and cast to File
