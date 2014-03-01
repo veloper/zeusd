@@ -2,7 +2,7 @@
 
 Zeusd aims to provide greater control and easier scripting of the [Zeus Gem](https://github.com/burke/zeus) via daemonization.
 
-## Feautres
+## Features
 
 * Run the [Zeus Gem](https://github.com/burke/zeus) as a daemon.
 * Optionally block execution until Zeus has finished loaded using the `--block` flag.
