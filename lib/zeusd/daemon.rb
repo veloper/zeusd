@@ -3,7 +3,6 @@ require 'childprocess'
 require 'pathname'
 require 'file-tail'
 
-require 'zeusd/daemon_exception'
 require 'zeusd/daemon_logging'
 
 module Zeusd
@@ -40,10 +39,6 @@ module Zeusd
 
       # Clean up socket file if stil exists
       (zeus_socket_file.delete rescue nil) if zeus_socket_file.exist?
-
-      # Check for remaining processes
-      living_processes = processes.select(&:alive?)
-      raise DaemonException, "Unable to KILL processes: " + living_processes.join(', ') if living_processes.any?
 
       @process = nil
 
