@@ -1,37 +1,14 @@
-require 'logger'
 require 'thread'
 require 'childprocess'
 require 'pathname'
-require 'hooks'
 require 'file-tail'
-require 'json'
+
+require 'zeusd/daemon_exception'
+require 'zeusd/daemon_logging'
 
 module Zeusd
-  class DaemonException < StandardError; end
-
   class Daemon
-    include Hooks
-
-    define_hooks :before_action, :after_action, :after_output
-
-    before_action do |action|
-      details = {}
-      details[:process] = process.attributes if process
-      log_event("Before: #{action}", details)
-    end
-
-    after_action do |action|
-      details = {}
-      details[:process] = process.attributes if process
-      log_event("After: #{action}", details)
-    end
-
-    after_output do |output|
-      interpreter.translate(output)
-      puts output if verbose
-    end
-
-    attr_reader :cwd, :verbose, :log_file, :interpreter, :child_process
+    attr_reader :cwd, :verbose, :interpreter, :child_process
 
     def initialize(options = {})
       @cwd         = Pathname.new(options[:cwd] || Dir.pwd).realpath
@@ -40,8 +17,6 @@ module Zeusd
     end
 
     def start!(options = {})
-      run_hook :before_action, __method__
-
       start_child_process!
 
       @process = Zeusd::Process.find(child_process.pid)
@@ -50,24 +25,14 @@ module Zeusd
         sleep(0.1) until loaded?
       end
 
-      run_hook :after_action, __method__
-
       self
     end
 
     def restart!(options = {})
-      run_hook :before_action, __method__
-
       stop!.start!(options)
-
-      run_hook :after_action, __method__
-
-      self
     end
 
     def stop!
-      run_hook :before_action, __method__
-
       return self unless process
 
       # Kill process tree and wait for exits
@@ -82,8 +47,6 @@ module Zeusd
       end
 
       @process = nil
-
-      run_hook :after_action, __method__
 
       self
     end
@@ -106,27 +69,22 @@ module Zeusd
       end
     end
 
+    def to_json(*args)
+      {
+        :class   => self.class.name,
+        :cwd     => cwd.to_path,
+        :verbose => verbose,
+        :process => process
+      }.to_json(*args)
+    end
+
     protected
 
-    def log_event(type, details = nil)
-      logger.info do
-        "\e[35m[Event] (#{type})\e[0m" + (!details.empty? ? " " + JSON.pretty_generate(details) : "")
-      end
-    end
-
-    def logger
-      @logger ||= Logger.new(cwd.join('log', 'zeusd.log').to_path).tap do |x|
-        x.formatter = proc do |severity, datetime, progname, msg|
-          prefix    = "[#{datetime.strftime('%Y-%m-%d %H:%M:%S')}]"
-          "\e[36m#{prefix}\e[0m" + " #{msg}\n"
-        end
-      end
-    end
-
     def start_child_process!
-      # Truncate and cast to File
+      # Truncate and cast to File instance
       zeus_log_file.open("w") {}
-      std_file = File.new(zeus_log_file, 'w+').tap{|x| x.sync = true}
+      std_file = File.new(zeus_log_file, 'w+')
+      std_file.sync = true
 
       # Prep and Start child process
       @child_process = ChildProcess.build("zeus", "start")
@@ -143,7 +101,10 @@ module Zeusd
           log.extend(File::Tail)
           log.interval = 0.1
           log.backward(100)
-          log.tail {|line| run_hook(:after_output, line) }
+          log.tail do |line|
+            interpreter.translate(line)
+            puts line if verbose
+          end
         end
       end
 
@@ -153,5 +114,6 @@ module Zeusd
       @child_process
     end
 
+    include Zeusd::DaemonLogging
   end
 end

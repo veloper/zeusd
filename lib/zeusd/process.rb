@@ -18,6 +18,10 @@ module Zeusd
       end
     end
 
+    def to_json(*args)
+      attributes.to_json(*args)
+    end
+
     def self.ps(options = {})
       keywords = Array(options[:keywords]) | %w[pid ppid pgid stat command]
       command  = ["ps"].tap do |ps|
