@@ -83,6 +83,10 @@ module Zeusd
         end
       end
 
+      def color?
+        !!color
+      end
+
     end
 
   end

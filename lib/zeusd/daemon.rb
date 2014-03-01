@@ -36,7 +36,7 @@ module Zeusd
       return self unless process
 
       # Kill process tree and wait for exits
-      process.kill!(:recursive => true, :wait => true)
+      process.kill!(:recursive => true, :signal => "KILL", :wait => true)
 
       # Clean up socket file if stil exists
       (zeus_socket_file.delete rescue nil) if zeus_socket_file.exist?
