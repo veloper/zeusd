@@ -42,13 +42,16 @@ module Zeusd
       (zeus_socket_file.delete rescue nil) if zeus_socket_file.exist?
 
       # Check for remaining processes
-      if[process, process.descendants].flatten.select(&:alive?).any?
-        raise DaemonException, "Unable to KILL processes: " + alive_processes.join(', ')
-      end
+      living_processes = processes.select(&:alive?)
+      raise DaemonException, "Unable to KILL processes: " + living_processes.join(', ') if living_processes.any?
 
       @process = nil
 
       self
+    end
+
+    def processes
+      process ? [process, process.descendants].flatten : []
     end
 
     def process
