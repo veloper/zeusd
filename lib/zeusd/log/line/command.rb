@@ -8,6 +8,10 @@ module Zeusd
           line[/^\e.*?zeus\s(.*?)(\s|\e)/]
         end
 
+        def id
+          name
+        end
+
         def name
           self[/^\e.*?zeus\s(.*?)(\s|\e)/, 1]
         end

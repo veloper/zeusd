@@ -5,12 +5,14 @@ module Zeusd
 
       class Update < Base
 
+        attr_reader :time
+
         def self.matches_line?(line)
           !!line[/\s=====$/]
         end
 
         def time
-          Time.parse(self[/UPDATED\s(.*?)\s=/, 1])
+          @time ||= Time.parse(self[/UPDATED\s(.*?)\s=/, 1])
         end
       end
 

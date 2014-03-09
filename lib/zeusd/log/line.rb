@@ -13,8 +13,8 @@ module Zeusd
       class << self
 
         def create(line)
-          [Command, Process, Update, Error, Base].find do |klass|
-            klass.matches_line?(line) ? klass.new(line) : false
+          [Command, Process, Update, Error, Base].each do |klass|
+            return klass.new(line) if klass.matches_line?(line)
           end
         end
 

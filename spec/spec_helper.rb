@@ -1,11 +1,14 @@
+# encoding: utf-8
 require 'simplecov'
 SimpleCov.start
 
+require 'tempfile'
+
+require File.expand_path('../support/helpers.rb', __FILE__)
+require File.expand_path('../support/constants.rb', __FILE__)
+
 require 'zeusd'
 
-DUMMY_APP_PATH = File.expand_path('../dummy', __FILE__)
-DUMMY_ZEUS_LOG_PATH = File.expand_path('../support/dummy_zeus.log', __FILE__)
-
-RSpec.configure do |config|
-
+RSpec.configure do |c|
+  c.include Helpers
 end

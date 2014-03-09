@@ -10,11 +10,15 @@ module Zeusd
         end
 
         def status_substring
-          color
+          ansi_color
+        end
+
+        def id
+          self
         end
 
         def status?(status)
-          color_of(status_substring) == STATUS_TO_ANSI[status]
+          ansi_color_of(status_substring) == Log::STATUS_TO_ANSI[status]
         end
 
         def ready?
@@ -37,7 +41,15 @@ module Zeusd
           status? :connecting
         end
 
-        def color_of(substring)
+        def loading?
+          [:waiting, :connecting, :running].any? {|x| status? x}
+        end
+
+        def done?
+          [:crashed, :ready].any? {|x| status? x}
+        end
+
+        def ansi_color_of(substring)
           if stop_point = index(substring) + (substring.length - 1)
             if color_start = rindex(/\e/, stop_point)
               color_end = index('m', color_start)
@@ -46,7 +58,7 @@ module Zeusd
           end
         end
 
-        def color
+        def ansi_color
           if self[0] == "\e" && !self.index('m').nil?
             self[0..self.index('m')]
           end

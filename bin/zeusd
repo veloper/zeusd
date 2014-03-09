@@ -21,12 +21,20 @@ class ZeusdCLI < Thor
     daemon.stop!
   end
 
+  desc "status", "Get the current status."
+  method_option :follow, :type => :boolean, :aliases => :f
+  def status
+    trap("SIGINT") { exit! }
+    queue = daemon.status_queue
+    while output = queue.shift
+      puts output
+    end
+  end
+
   desc "tail", "Tail the daemon's log."
   method_option :follow, :type => :boolean, :aliases => :f
   def tail
-    cmd = "tail#{options[:follow] ? ' -f' : ''} -n 25 #{daemon.log_file.to_path}"
-    puts "\n\n[Zeusd] exec(#{cmd})\n\n"
-    exec(cmd)
+    exec "tail#{options[:follow] ? ' -f' : ''} -n 25 #{daemon.log_file.to_path}"
   end
 
   protected

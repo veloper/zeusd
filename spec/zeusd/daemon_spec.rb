@@ -5,27 +5,27 @@ describe Zeusd::Daemon do
   after(:each) { daemon.stop! }
 
   describe ".start!" do
-    subject { daemon.start!(:verbose => true) }
+    subject { daemon.start! }
     it { should be daemon }
-    it { should_not be_loaded }
+    it { should_not be_finished }
 
     describe ":block option" do
       subject { daemon.start!(:block => true) }
-      it { should be_loaded }
+      it { should be_finished }
     end
   end
 
   describe ".stop!" do
     subject { daemon.start!.stop! }
     it { should be daemon }
-    it { should_not be_loaded }
+    it { should_not be_finished }
   end
 
   describe ".restart!" do
     subject { daemon }
     context "when daemon is already running" do
       before { subject.start!.restart!(:block => true) }
-      it { should be_loaded }
+      it { should be_finished }
     end
   end
 

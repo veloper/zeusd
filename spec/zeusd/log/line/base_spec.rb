@@ -7,11 +7,9 @@ require 'zeusd'
 describe Zeusd::Log::Line::Base do
 
   class ExampleLine < Zeusd::Log::Line::Base
-
     def status_substring
       "example"
     end
-
   end
 
   RED    = "\e[31m"
@@ -20,27 +18,33 @@ describe Zeusd::Log::Line::Base do
 
   let(:line) { Zeusd::Log::Line::Base.new("#{RED}This line starts with red but then#{GREEN}changes to green after a bit") }
 
-  describe ".color" do
-    subject { line.color }
+
+  describe ".ansi_color" do
+    subject { line.ansi_color }
     it { should eq RED }
   end
 
-  describe ".color_of" do
-    context "far from color set" do
-      subject { line.color_of("bit") }
+
+  describe ".ansi_color_of" do
+    context "far from setting of color" do
+      subject { line.ansi_color_of("bit") }
       it { should eq GREEN }
     end
 
-    context "close to color set" do
-      subject { line.color_of("This") }
+    context "near setting of color" do
+      subject { line.ansi_color_of("This") }
       it { should eq RED }
     end
 
     context "color itself" do
-      subject { line.color_of(GREEN) }
+      subject { line.ansi_color_of(GREEN) }
       it { should eq GREEN }
     end
+  end
 
+  describe ".status_substring" do
+    subject { line }
+    it { should be_crashed }
   end
 
   describe "checking status of substring" do

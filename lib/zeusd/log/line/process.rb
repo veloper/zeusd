@@ -5,11 +5,15 @@ module Zeusd
 
       class Process < Base
         def self.matches_line?(line)
-          !!line[/(^boot|─)/]
+          !!line[/(boot|─)/]
+        end
+
+        def id
+          name
         end
 
         def name
-          self[/(\e\[[0-9]{1,2}m)([a-z_]+)/,2]
+          self[/(\e\[[0-9]{1,2}m)([a-z_]+)/, 2]
         end
 
         def status_substring

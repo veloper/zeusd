@@ -21,7 +21,6 @@ Gem::Specification.new do |spec|
   spec.add_runtime_dependency "thor"         , "~> 0.18.1"
   spec.add_runtime_dependency "childprocess" , ">= 0.5.1"
   spec.add_runtime_dependency "file-tail"    , "~> 1.0.12"
-  spec.add_runtime_dependency "hooks"        , "~> 0.3.3"
   spec.add_runtime_dependency "zeus"         , "~> 0.13.3"
 
   spec.add_development_dependency "bundler", "~> 1.3"

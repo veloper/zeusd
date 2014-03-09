@@ -1,18 +1,10 @@
-require 'thread'
-require 'childprocess'
-require 'pathname'
-require 'file-tail'
-
-require 'zeusd/daemon_logging'
-
 module Zeusd
   class Daemon
-    attr_reader :cwd, :verbose, :interpreter, :child_process
+    attr_reader :cwd, :verbose, :child_process, :status
 
     def initialize(options = {})
-      @cwd         = Pathname.new(options[:cwd] || Dir.pwd).realpath
-      @verbose     = !!options[:verbose]
-      @interpreter = Interpreter.new
+      @cwd     = Pathname.new(options[:cwd] || Dir.pwd).realpath
+      @verbose = !!options[:verbose]
     end
 
     def start!(options = {})
@@ -21,7 +13,7 @@ module Zeusd
       @process = Zeusd::Process.find(child_process.pid)
 
       if options.fetch(:block, false)
-        sleep(0.1) until loaded?
+        sleep(3) until status.finished?
       end
 
       self
@@ -38,33 +30,44 @@ module Zeusd
       process.kill!(:recursive => true, :signal => "KILL", :wait => true)
 
       # Clean up socket file if stil exists
-      (zeus_socket_file.delete rescue nil) if zeus_socket_file.exist?
+      (zeus_socket.delete rescue nil) if zeus_socket.exist?
 
       @process = nil
 
       self
     end
 
-    def processes
-      process ? [process, process.descendants].flatten : []
+    def status_queue
+      queue  = Queue.new
+      status = Log::Status.new(File.new(zeus_log.to_path, 'r'))
+
+      queue << status.to_cli
+      status.on_update {|x| queue << x.to_cli }
+      status.record!
+
+      queue
     end
 
     def process
       @process ||= Process.all.find {|p| !!p.command[/zeus.*start$/] && p.cwd == cwd }
     end
 
-    def loaded?
-      interpreter.complete?
+    def finished?
+      status.finished?
     end
 
-    def zeus_socket_file
+    def zeus_socket
       cwd.join('.zeus.sock')
     end
 
-    def zeus_log_file
+    def zeus_log
       cwd.join('log', 'zeus.log').tap do |path|
         FileUtils.touch(path.to_path)
       end
+    end
+
+    def verbose?
+      !!verbose
     end
 
     def to_json(*args)
@@ -79,9 +82,9 @@ module Zeusd
     protected
 
     def start_child_process!
-      # Truncate and cast to File instance
-      zeus_log_file.open("w") {}
-      std_file = File.new(zeus_log_file, 'w+')
+       # Truncate and cast to File instance
+      zeus_log.open("w") {}
+      std_file = File.new(zeus_log.to_path, 'w+')
       std_file.sync = true
 
       # Prep and Start child process
@@ -93,25 +96,17 @@ module Zeusd
       @child_process.detach    = true
       @child_process.start
 
-      # Start tailing child process output
-      Thread.new do
-        File.open(std_file.to_path) do |log|
-          log.extend(File::Tail)
-          log.interval = 0.1
-          log.backward(100)
-          log.tail do |line|
-            interpreter.translate(line)
-            puts line if verbose
-          end
-        end
+      @status = Log::Status.new(std_file)
+      @status.on_update do |status, line|
+        puts status.to_cli if verbose?
       end
+      @status.record!
 
-      # Block until the first zeus command has been registered
-      sleep 0.1 until interpreter.commands.any?
+      sleep 0.1 until @status.started?
 
       @child_process
     end
 
-    include Zeusd::DaemonLogging
+    include Zeusd::DaemonTracker
   end
 end

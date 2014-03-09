@@ -1,5 +1,7 @@
+require 'zeusd/log/last_line_array'
 require 'zeusd/log/line'
-require 'zeusd/log/observer'
+require 'zeusd/log/status'
+require 'zeusd/log/tailer'
 
 module Zeusd
   module Log
