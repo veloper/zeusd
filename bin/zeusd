@@ -26,8 +26,12 @@ class ZeusdCLI < Thor
   def status
     trap("SIGINT") { exit! }
     queue = daemon.status_queue
-    while output = queue.shift
-      puts output
+    if options[:follow]
+      while output = queue.shift
+        puts output
+      end
+    else
+      puts queue.pop
     end
   end
 
