@@ -7,7 +7,7 @@ Zeusd aims to provide greater control and easier scripting of the [Zeus Gem](htt
 * Run the [Zeus Gem](https://github.com/burke/zeus) as a daemon.
 * Block execution until after Zeus has loaded using the `--block` flag.
 * Manage multiple zeusd daemons using the `--cwd` flag.
-* Show or follow the live Status Shart using the `zeusd status` command.
+* Show or follow the live Status Chart using the `zeusd status` command.
 
 ## Usage
 
